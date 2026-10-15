@@ -54,13 +54,20 @@ The rest of each event follows while the budget allows.
 ## Install
 
 1. Flash **Raspberry Pi OS Lite (32-bit, Bookworm)** with Raspberry Pi Imager. In the Imager settings, enable SSH and enter the wifi network you'll use for setup (home wifi or the car hotspot). You can add more networks later from the UI's **Wifi** page.
-2. Boot the Pi, SSH in, and run:
+2. Boot the Pi and SSH in. The repo is private, so give the Pi a read-only **deploy key** first:
    ```bash
-   sudo apt install -y git && git clone <this repo> teslacam && cd teslacam
+   sudo apt install -y git
+   ssh-keygen -t ed25519 -N "" -C "teslacam-pi deploy" -f ~/.ssh/teslacam_deploy
+   cat ~/.ssh/teslacam_deploy.pub
+   ```
+   Add the printed key at **GitHub → pmakro/teslacam-pi → Settings → Deploy keys → Add deploy key**, leaving *Allow write access* **unticked**. Then clone and install:
+   ```bash
+   GIT_SSH_COMMAND="ssh -i ~/.ssh/teslacam_deploy -o IdentitiesOnly=yes" git clone git@github.com:pmakro/teslacam-pi.git teslacam
+   cd teslacam && git config core.sshCommand "ssh -i ~/.ssh/teslacam_deploy -o IdentitiesOnly=yes"
    sudo ./install/setup.sh
    sudo reboot
    ```
-   The installer is safe to re-run after a `git pull`. You can override the drive size with `CAM_SIZE_GB=64`.
+   To update later, run `cd ~/teslacam && git pull && sudo ./install/setup.sh`. The installer keeps your config and clips. You can override the drive size with `CAM_SIZE_GB=64`.
 3. **Set up the NAS and Tailscale.** For Synology DSM 7 there is a step-by-step guide: **[docs/nas-setup-synology.md](docs/nas-setup-synology.md)**. It covers Tailscale on both ends, key expiry, the shared folder and user, SSH/rsync, the firewall, installing the Pi's key, a test command and troubleshooting.
    On other NAS systems you need the same pieces: Tailscale, SSH with rsync, a user with write access to one folder, and the Pi's public key in that user's `~/.ssh/authorized_keys`.
 4. Edit `/etc/teslacam/config.toml` (see [config.example.toml](install/config.example.toml)):
