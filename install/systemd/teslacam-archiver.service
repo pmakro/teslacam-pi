@@ -1,0 +1,21 @@
+[Unit]
+Description=TeslaCam: archive Sentry/Saved clips from the car drive
+After=teslacam-gadget.service
+Wants=teslacam-gadget.service
+RequiresMountsFor=/archive /backingfiles
+
+[Service]
+User=teslacam
+Group=teslacam
+WorkingDirectory=/opt/teslacam
+Environment=PYTHONPATH=/opt/teslacam PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m teslacam archiver
+Restart=always
+RestartSec=10
+# Keep the car's writes and the UI responsive while copying.
+Nice=10
+IOSchedulingClass=idle
+UMask=0022
+
+[Install]
+WantedBy=multi-user.target

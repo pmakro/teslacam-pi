@@ -1,0 +1,59 @@
+# TeslaCam configuration: /etc/teslacam/config.toml
+# After editing:  sudo systemctl restart teslacam-archiver teslacam-uploader teslacam-web
+# Values marked (UI) can also be changed on the Settings page; the UI value wins.
+
+[paths]
+archive_dir = "/archive/events"          # local copies of Sentry/Saved events
+db_path = "/archive/teslacam.db"
+
+[car]
+mode = "image"                           # USB gadget backed by a disk image
+image_path = "/backingfiles/cam_disk.bin"
+snapshot_mount = "/mnt/teslacam/snap"
+rw_mount = "/mnt/teslacam/rw"
+priv_helper = "/opt/teslacam/scripts/priv.sh"
+scan_interval = 120                      # seconds between archive cycles
+settle_seconds = 300                     # an event must stop changing this long before upload/cleanup
+cleanup_free_pct = 25                    # remove archived events from the car drive below this % free
+idle_seconds = 90                        # ...but only when the car hasn't written for this long
+
+[upload]
+enabled = true
+host = "100.64.0.1"                      # the NAS's Tailscale IP (100.x.y.z), or its MagicDNS name
+user = "teslacam"                        # SSH user on the NAS
+port = 22
+remote_dir = "/volume1/TeslaCam"         # NAS folder; events land in <remote_dir>/<SentryClips|SavedClips>/<event>/
+ssh_key = "/home/teslacam/.ssh/id_ed25519"
+bwlimit_kbps = 0                         # (UI) 0 = unlimited
+max_batch_files = 12
+max_attempts = 5                         # per file, then it is marked failed until you retry it in the UI
+
+[budget]
+monthly_gb = 20                          # (UI) mobile data allowance for uploads
+billing_day = 1                          # (UI) day of month the data plan resets
+interface = "tailscale0"                 # traffic counted on this interface...
+overhead = 1.06                          # ...times this factor for WireGuard/LTE overhead
+
+[retention]
+days = 14                                # (UI) keep uploaded events on the Pi this long (0 = delete once uploaded)
+min_free_pct = 15                        # (UI) prune oldest uploaded events if free space drops below this
+
+[network]
+watchdog = true                          # recover the wifi if the link to the hotspot is dead...
+interface = "wlan0"
+stuck_minutes = 10                       # ...for this long (then backs off up to 1 h between tries)
+check_interval = 30
+# Fallback setup hotspot: if no saved network is reachable, the Pi runs its own wifi so you can
+# add one from your phone at http://10.42.0.1/wifi
+setup_hotspot = true
+setup_ssid = "TeslaCam-Setup"
+setup_password = ""                      # 8+ characters; setup.sh generates one. Empty = hotspot disabled
+setup_address = "10.42.0.1"
+fallback_minutes = 3                     # no saved network reachable this long -> start the hotspot
+setup_minutes = 5                        # hotspot unused this long -> retry saved networks
+
+[web]
+host = "0.0.0.0"
+port = 80
+password_hash = ""                       # python3 -m teslacam hash-password
+secret_key = ""                          # python3 -m teslacam secret-key

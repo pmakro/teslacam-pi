@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% from "_macros.html" import usage_bar, type_badge %}
+{% block title %}Uploads{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="20">{% endblock %}
+{% block content %}
+{% set up = summary.uploader %}
+{% set labels = {'idle': 'Idle: nothing to upload', 'uploading': 'Uploading', 'paused': 'Paused',
+                 'budget': 'Stopped: data budget used up', 'offline': 'Waiting for the NAS',
+                 'error': 'Last upload failed, retrying', 'disabled': 'Uploads disabled in config'} %}
+<div class="page-head">
+  <h1>Uploads</h1>
+  <div class="btn-row">
+    {% if paused %}
+    <form method="post" action="{{ url_for('uploads_action', action='resume') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn primary">▶ Resume uploads</button></form>
+    {% else %}
+    <form method="post" action="{{ url_for('uploads_action', action='pause') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">❚❚ Pause uploads</button></form>
+    {% endif %}
+    <form method="post" action="{{ url_for('uploads_action', action='retry-failed') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Retry failed</button></form>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Status</h2>
+    <p style="margin:.25rem 0 .75rem;font-size:1.1rem;font-weight:600">
+      {{ labels.get(up.state, 'Uploader not running') }}
+    </p>
+    {% if up.state == 'uploading' %}
+      <p class="muted small" style="margin:0">{{ up.files }} file(s), {{ up.bytes|bytes }} from <a href="{{ url_for('event', event_id=up.event) }}">{{ up.event }}</a>, started {{ up.started|ago }}</p>
+    {% elif up.error %}
+      <p class="err-text">{{ up.error }}</p>
+    {% endif %}
+    <dl class="kv" style="margin-top:1rem">
+      <dt>Destination</dt><dd><code>{{ destination }}</code></dd>
+      <dt>NAS</dt><dd>{% if nas.at %}{% if nas.reachable %}<span class="badge ok">reachable</span>{% else %}<span class="badge err">unreachable</span>{% endif %} <span class="muted small">checked {{ nas.at|ago }}</span>{% else %}<span class="muted">not checked yet</span>{% endif %}</dd>
+      <dt>Last upload</dt><dd>{% if last %}{{ last.at|ago }}: {{ last.files }} file(s), {{ last.bytes|bytes }}{% else %}never{% endif %}</dd>
+      <dt>Waiting</dt><dd>{{ summary.pending.events }} event(s), {{ summary.pending.files }} file(s), {{ summary.pending.bytes|bytes }}</dd>
+      <dt>Heartbeat</dt><dd>{{ heartbeat|ago }}</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Mobile data</h2>
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <span style="font-size:1.4rem;font-weight:650">{{ summary.used|bytes }}</span>
+      <span class="muted">of {{ summary.budget|bytes }}</span>
+    </div>
+    {{ usage_bar(summary.used, summary.budget) }}
+    <p class="muted small">Billing period since {{ period }}. Uploads stop once the budget is used and resume when the next period starts. You can change the budget in <a href="{{ url_for('settings') }}">Settings</a>.</p>
+    {% if history|length > 1 %}
+    <table>
+      <thead><tr><th>Period</th><th class="num">Used</th></tr></thead>
+      <tbody>{% for h in history %}<tr><td>{{ h.period }}</td><td class="num">{{ h.bytes|bytes }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2>Queue</h2>
+  <p class="muted small" style="margin-top:-.5rem">Order: events you asked to upload, then the minutes around each trigger, Saved before Sentry, newest first. The rest of each event follows.</p>
+  {% if queue %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Event</th><th>Next part</th><th class="num">Files</th><th class="num">Size</th><th>State</th></tr></thead>
+    <tbody>
+    {% for q in queue %}
+      <tr>
+        <td><a href="{{ url_for('event', event_id=q.id) }}">{{ q.ts|dt }}</a><br>{{ type_badge(q.type) }} <span class="muted small">{{ q.reason|reason }}</span></td>
+        <td>{{ 'Trigger window' if q.priority == 0 else 'Remainder' }}</td>
+        <td class="num">{{ q.files }}</td>
+        <td class="num">{{ q.bytes|bytes }}</td>
+        <td>
+          {% if q.failed %}<span class="badge err">{{ q.failed }} failed</span>{% elif q.upload_requested %}<span class="badge info">requested</span>{% else %}<span class="badge">waiting</span>{% endif %}
+          {% if q.last_error %}<div class="err-text">{{ q.last_error[:200] }}</div>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">Everything is uploaded.</p>
+  {% endif %}
+</div>
+
+{% if recent %}
+<div class="card" style="margin-top:16px">
+  <h2>Recently uploaded</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Event</th><th class="num">Size</th><th>When</th></tr></thead>
+    <tbody>{% for r in recent %}<tr><td><a href="{{ url_for('event', event_id=r.id) }}">{{ r.ts|dt }}</a> <span class="muted small">{{ r.reason|reason }}</span></td><td class="num">{{ r.bytes|bytes }}</td><td>{{ r.at|ago }}</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

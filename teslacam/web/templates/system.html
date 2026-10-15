@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "_macros.html" import usage_bar %}
+{% block title %}System{% endblock %}
+{% block content %}
+<div class="page-head"><h1>System</h1></div>
+
+{% if archiver_error %}<div class="flash error">{{ archiver_error }}</div>{% endif %}
+{% if pending_requests %}<div class="flash">Waiting for the archiver to: {{ pending_requests|join(', ') }}</div>{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Car drive</h2>
+    {% if car %}
+      <div style="display:flex;justify-content:space-between"><span>{{ (car.total - car.free)|bytes }} used</span><span class="muted">{{ car.free|bytes }} free of {{ car.total|bytes }}</span></div>
+      {{ usage_bar(car.total - car.free, car.total, 100 - cleanup_pct, 90) }}
+      <p class="muted small">Archived events are removed from the car drive when it has less than {{ cleanup_pct }}% free and the car has stopped writing.</p>
+    {% else %}
+      <p class="muted">No data yet{% if car_present == false %}: car drive image not found{% endif %}.</p>
+    {% endif %}
+    <dl class="kv" style="margin:1rem 0">
+      <dt>Mode</dt><dd>{{ 'USB gadget (disk image)' if mode == 'image' else 'Directory (development)' }}</dd>
+      <dt>Presented to car</dt><dd>{% if car_attached %}<span class="badge ok">attached</span>{% elif car_attached == false %}<span class="badge warn">ejected</span>{% else %}—{% endif %}</dd>
+      <dt>Last cleanup</dt><dd>{% if last_cleanup %}{{ last_cleanup.at|ago }}: {{ last_cleanup.events }} event(s), {{ last_cleanup.bytes|bytes }}{% else %}never{% endif %}</dd>
+    </dl>
+    <div class="btn-row">
+      <form method="post" action="{{ url_for('system_action', action='cleanup') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm" onclick="return confirm('Detach the drive from the car for a few seconds and remove archived events from it?')">Clean up now</button></form>
+      {% if car_attached == false %}
+      <form method="post" action="{{ url_for('system_action', action='attach') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm primary">Attach to car</button></form>
+      {% else %}
+      <form method="post" action="{{ url_for('system_action', action='eject') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm" onclick="return confirm('The car will stop recording until the drive is attached again. Eject?')">Eject from car</button></form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Pi storage</h2>
+    {% if archive %}
+      <div style="display:flex;justify-content:space-between"><span>{{ (archive.total - archive.free)|bytes }} used</span><span class="muted">{{ archive.free|bytes }} free of {{ archive.total|bytes }}</span></div>
+      {{ usage_bar(archive.total - archive.free, archive.total) }}
+    {% else %}<p class="muted">No data yet.</p>{% endif %}
+    <h2 style="margin-top:1.25rem">Services</h2>
+    <dl class="kv">
+      {% for name, beat in beats.items() %}
+      <dt>{{ name }}</dt><dd>{% if beat.alive %}<span class="badge ok">running</span>{% else %}<span class="badge err">not running</span>{% endif %} <span class="muted small">last seen {{ beat.at|ago }}</span></dd>
+      {% endfor %}
+      <dt>Wifi</dt><dd>
+        {% set wifi = wifi_state %}
+        {% if not wifi %}<span class="muted">network daemon not running</span>
+        {% elif wifi.mode == 'setup' %}<span class="badge warn">setup hotspot</span> <span class="muted small">{{ wifi.setup_ssid }}</span>
+        {% elif wifi.ok %}<span class="badge ok">connected</span> <span class="muted small">{{ wifi.detail }}</span>
+        {% else %}<span class="badge err">down</span> <span class="muted small">{{ wifi.detail }}, last OK {{ wifi.last_ok|ago }}{% if wifi.recoveries %}, {{ wifi.recoveries }} recovery attempt(s){% endif %}</span>{% endif %}
+        {% if wifi_recovery %}<div class="muted small">Last recovery: {{ wifi_recovery.action }} {{ wifi_recovery.at|ago }}</div>{% endif %}
+        <div class="small"><a href="{{ url_for('wifi_page') }}">Manage wifi networks</a></div>
+      </dd>
+    </dl>
+    <div class="btn-row" style="margin-top:1rem">
+      <form method="post" action="{{ url_for('system_action', action='reboot') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn sm danger" onclick="return confirm('Reboot the Pi? The car drive disappears for about a minute.')">Reboot Pi</button></form>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2>Logs</h2>
+  <pre class="logs">{{ logs }}</pre>
+</div>
+{% endblock %}

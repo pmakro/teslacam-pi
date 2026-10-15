@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_macros.html" import type_badge %}
+{% block title %}{{ ev.ts|dt }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="btn-row" style="margin-bottom:.35rem">{{ type_badge(ev.type) }}{% if ev.protected %}<span class="badge info">🔒 Protected</span>{% endif %}</div>
+    <h1>{{ ev.ts|dt }}</h1>
+    <div class="muted">{{ ev.reason|reason or 'Unknown trigger' }}{% if ev.city %} · {{ ev.city }}{% endif %}</div>
+  </div>
+  <div class="btn-row">
+    {% if neighbours.newer %}<a class="btn sm" href="{{ url_for('event', event_id=neighbours.newer.id) }}">← Newer</a>{% endif %}
+    {% if neighbours.older %}<a class="btn sm" href="{{ url_for('event', event_id=neighbours.older.id) }}">Older →</a>{% endif %}
+  </div>
+</div>
+
+<div class="event-layout">
+  <section>
+    <div class="player" id="player">
+      <div class="views" id="views"></div>
+    </div>
+    <div class="player-controls" id="controls">
+      <div class="row">
+        <button class="btn sm" id="play" type="button">▶ Play</button>
+        <div class="timeline" id="timeline"><input type="range" id="scrub" min="0" value="0" step="0.1" aria-label="Seek"></div>
+        <span class="time" id="time">0:00 / 0:00</span>
+      </div>
+      <div class="row">
+        <div class="cams" id="cams"></div>
+        <span style="flex:1"></span>
+        <select id="rate" aria-label="Speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="0.5">0.5×</option></select>
+      </div>
+      <div class="muted small" id="clipinfo"></div>
+    </div>
+  </section>
+
+  <aside class="stack">
+    <div class="card">
+      <h2>Actions</h2>
+      <form method="post" action="{{ url_for('event_action', event_id=ev.id) }}" class="btn-row">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn sm" name="action" value="upload">Upload now</button>
+        <button class="btn sm" name="action" value="reupload" onclick="return confirm('Upload every file of this event again?')">Re-upload</button>
+        {% if ev.protected %}
+        <button class="btn sm" name="action" value="unprotect">Unprotect</button>
+        {% else %}
+        <button class="btn sm" name="action" value="protect" title="Never delete automatically">Protect</button>
+        {% endif %}
+        <a class="btn sm" href="{{ url_for('download_zip', event_id=ev.id) }}">Download .zip</a>
+        <button class="btn sm danger" name="action" value="delete" onclick="return confirm('Delete this event from the Pi? A copy already on the NAS is kept.')">Delete</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Details</h2>
+      <dl class="kv">
+        <dt>Trigger</dt><dd>{{ ev.ts|dt }}</dd>
+        <dt>Reason</dt><dd>{{ ev.reason or '—' }}</dd>
+        {% if ev.city %}<dt>City</dt><dd>{{ ev.city }}</dd>{% endif %}
+        {% if ev.lat is not none and ev.lon is not none %}
+        <dt>Location</dt><dd><a href="https://www.openstreetmap.org/?mlat={{ ev.lat }}&mlon={{ ev.lon }}#map=17/{{ ev.lat }}/{{ ev.lon }}" target="_blank" rel="noopener">{{ '%.5f'|format(ev.lat) }}, {{ '%.5f'|format(ev.lon) }}</a></dd>
+        {% endif %}
+        <dt>Archived</dt><dd>{{ ev.first_seen|epoch }}</dd>
+        <dt>Folder</dt><dd><code>{{ ev.id }}</code></dd>
+      </dl>
+    </div>
+  </aside>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2>Files</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>File</th><th>Camera</th><th class="num">Size</th><th>Upload</th><th></th></tr></thead>
+      <tbody>
+      {% for f in files %}
+        <tr>
+          <td><code>{{ f.name }}</code>{% if f.priority == 0 and f.kind == 'video' %} <span class="badge warn" title="Close to the trigger, uploaded first">trigger</span>{% endif %}</td>
+          <td>{{ f.camera.replace('_', ' ') if f.camera else '—' }}</td>
+          <td class="num">{{ f.size|bytes }}</td>
+          <td>
+            {% if f.uploaded_at %}<span class="badge ok">✓ {{ f.uploaded_at|ago }}</span>
+            {% elif f.attempts >= max_attempts %}<span class="badge err">failed</span>
+            {% elif f.attempts %}<span class="badge warn">retrying ({{ f.attempts }})</span>
+            {% else %}<span class="badge">pending</span>{% endif %}
+            {% if f.last_error and not f.uploaded_at %}<div class="err-text">{{ f.last_error }}</div>{% endif %}
+          </td>
+          <td><a class="btn sm" href="{{ url_for('media', event_id=ev.id, name=f.name, dl=1) }}">Download</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="player-data" type="application/json">{{ player|safe }}</script>
+<script src="{{ url_for('static', filename='player.js') }}"></script>
+{% endblock %}

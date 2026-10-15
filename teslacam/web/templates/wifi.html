@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Wifi{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Wifi</h1></div>
+
+{% if setup %}
+<div class="flash">
+  <strong>Setup mode.</strong> The Pi couldn't reach any saved network, so it is running its own hotspot
+  <code>{{ state.setup_ssid }}</code>. Add the car hotspot below. The Pi will then switch to it:
+  join the same network on your phone and open <code>http://{{ hostname }}.local</code>.
+  Uploads resume once it is connected. Recording is not affected.
+</div>
+{% endif %}
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h2>Status</h2>
+    <dl class="kv">
+      <dt>Mode</dt><dd>
+        {% if not state %}<span class="muted">network daemon not running</span>
+        {% elif setup %}<span class="badge warn">setup hotspot</span> since {{ state.setup_since|ago }}
+        {% elif state.ok %}<span class="badge ok">connected</span>
+        {% else %}<span class="badge err">{{ state.state }}</span>{% endif %}
+      </dd>
+      {% if live.connection %}<dt>Network</dt><dd>{{ live.connection }}</dd>{% endif %}
+      {% if live.ip %}<dt>IP address</dt><dd><code>{{ live.ip }}</code></dd>{% endif %}
+      {% if state.detail %}<dt>Link</dt><dd>{{ state.detail }}</dd>{% endif %}
+      {% if state and not state.hotspot_enabled %}<dt>Setup hotspot</dt><dd><span class="muted">disabled (no <code>network.setup_password</code> in the config)</span></dd>{% endif %}
+    </dl>
+    {% if not setup %}
+    <form method="post" action="{{ url_for('wifi_connect') }}" style="margin-top:1rem">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn sm" title="Let NetworkManager pick the best saved network in range">Reconnect</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Saved networks</h2>
+    {% if known %}
+    <table>
+      <tbody>
+      {% for n in known %}
+        <tr>
+          <td>{{ n.ssid }}{% if n.name == live.connection %} <span class="badge ok">in use</span>{% endif %}</td>
+          <td class="num">
+            <div class="btn-row" style="justify-content:flex-end">
+              {% if n.name != live.connection %}
+              <form method="post" action="{{ url_for('wifi_connect') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="uuid" value="{{ n.uuid }}"><button class="btn sm">Connect</button></form>
+              {% endif %}
+              <form method="post" action="{{ url_for('wifi_remove') }}"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="uuid" value="{{ n.uuid }}"><button class="btn sm danger" onclick='return confirm({{ ("Forget " ~ n.ssid ~ "?" ~ (" The Pi is connected through it right now and will drop off." if n.name == live.connection else ""))|tojson }})'>Forget</button></form>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% elif not error %}
+    <p class="muted">No networks saved yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<form class="card" method="post" action="{{ url_for('wifi_add') }}" style="margin-top:16px">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="page-head" style="margin-bottom:.5rem">
+    <h2 style="margin:0">Add a network</h2>
+    {% if not setup %}<button class="btn sm" formaction="{{ url_for('wifi_scan') }}" formnovalidate>Scan</button>{% endif %}
+  </div>
+  {% if scan.networks %}
+  <div class="field">
+    <label for="ssid">Network</label>
+    <select id="ssid" name="ssid" style="width:100%">
+      {% for n in scan.networks %}
+      <option value="{{ n.ssid }}">{{ n.ssid }} · {{ n.signal }}%{% if not n.secure %} · open{% endif %}</option>
+      {% endfor %}
+    </select>
+    <div class="hint">Found {{ scan.at|ago }}. Not listed? Type the name below.</div>
+  </div>
+  {% endif %}
+  <div class="field">
+    <label for="ssid_manual">{{ 'Or type a network name' if scan.networks else 'Network name' }}</label>
+    <input id="ssid_manual" name="ssid_manual" maxlength="32" autocomplete="off" autocapitalize="off" style="width:100%">
+  </div>
+  <div class="field">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" minlength="8" maxlength="64" autocomplete="off" style="width:100%">
+    <div class="hint">Leave empty for an open network.</div>
+  </div>
+  {% if not setup %}
+  <label style="font-weight:400;display:flex;gap:.5rem;align-items:center;margin-bottom:1rem">
+    <input type="checkbox" name="connect" value="1" style="min-height:0"> Switch to it now
+  </label>
+  {% endif %}
+  <button class="btn primary" type="submit">Save network</button>
+</form>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% macro upload_badge(e) -%}
+  {%- if e.failed -%}<span class="badge err">Upload failed</span>
+  {%- elif e.nfiles and e.uploaded == e.nfiles -%}<span class="badge ok">✓ On NAS</span>
+  {%- elif e.uploaded -%}<span class="badge warn">{{ (100 * e.uploaded / e.nfiles)|round|int }}% uploaded</span>
+  {%- elif e.upload_requested -%}<span class="badge info">Queued</span>
+  {%- else -%}<span class="badge">Not uploaded</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro type_badge(t) -%}
+  {%- if t == 'SavedClips' -%}<span class="badge saved">Saved</span>{%- else -%}<span class="badge sentry">Sentry</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro usage_bar(used, total, warn_at=75, err_at=90) -%}
+  {%- set pct = (100 * used / total) if total else 0 -%}
+  <div class="bar {{ 'err' if pct >= err_at else ('warn' if pct >= warn_at else '') }}"><span style="width: {{ [pct, 100]|min }}%"></span></div>
+{%- endmacro %}

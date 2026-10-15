@@ -1,0 +1,16 @@
+[Unit]
+Description=TeslaCam: wifi watchdog and fallback setup hotspot
+After=network.target NetworkManager.service
+RequiresMountsFor=/archive
+
+[Service]
+User=teslacam
+Group=teslacam
+WorkingDirectory=/opt/teslacam
+Environment=PYTHONPATH=/opt/teslacam PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m teslacam netwatch
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

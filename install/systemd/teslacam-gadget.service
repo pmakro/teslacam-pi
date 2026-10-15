@@ -1,0 +1,15 @@
+[Unit]
+Description=TeslaCam: present the car drive over USB
+DefaultDependencies=no
+After=local-fs.target systemd-modules-load.service
+RequiresMountsFor=/backingfiles
+Before=teslacam-archiver.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/teslacam/scripts/priv.sh gadget-on
+ExecStop=/opt/teslacam/scripts/priv.sh gadget-off
+
+[Install]
+WantedBy=sysinit.target

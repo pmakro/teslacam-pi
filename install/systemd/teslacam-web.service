@@ -1,0 +1,18 @@
+[Unit]
+Description=TeslaCam: management web UI
+After=network.target teslacam-archiver.service
+RequiresMountsFor=/archive
+
+[Service]
+User=teslacam
+Group=teslacam
+SupplementaryGroups=systemd-journal
+WorkingDirectory=/opt/teslacam
+Environment=PYTHONPATH=/opt/teslacam PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m teslacam web
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

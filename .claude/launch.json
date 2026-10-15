@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "teslacam-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["dev/run_local.sh"],
+      "port": 8765
+    }
+  ]
+}

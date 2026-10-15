@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Settings</h1></div>
+<div class="grid-2">
+  <form class="card" method="post">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <h2>Mobile data</h2>
+    <div class="field">
+      <label for="budget">Monthly budget (GB)</label>
+      <input id="budget" name="budget.monthly_gb" type="number" min="0" step="0.5" value="{{ values['budget.monthly_gb'] }}">
+      <div class="hint">Uploads stop once this much data has gone through the tunnel in the current period.</div>
+    </div>
+    <div class="field">
+      <label for="billing">Billing period starts on day</label>
+      <input id="billing" name="budget.billing_day" type="number" min="1" max="28" value="{{ values['budget.billing_day'] }}">
+    </div>
+    <div class="field">
+      <label for="bw">Upload speed limit (KB/s)</label>
+      <input id="bw" name="upload.bwlimit_kbps" type="number" min="0" step="50" value="{{ values['upload.bwlimit_kbps'] }}">
+      <div class="hint">0 = unlimited.</div>
+    </div>
+
+    <h2 style="margin-top:1.5rem">Local storage</h2>
+    <div class="field">
+      <label for="days">Keep uploaded events on the Pi for (days)</label>
+      <input id="days" name="retention.days" type="number" min="0" value="{{ values['retention.days'] }}">
+      <div class="hint">Events that aren't on the NAS yet, or that you protected, are never deleted automatically.</div>
+    </div>
+    <div class="field">
+      <label for="free">Keep at least this much free space (%)</label>
+      <input id="free" name="retention.min_free_pct" type="number" min="0" max="90" value="{{ values['retention.min_free_pct'] }}">
+      <div class="hint">When space runs low, the oldest uploaded events are removed first.</div>
+    </div>
+    <button class="btn primary" type="submit">Save</button>
+  </form>
+
+  <div class="card">
+    <h2>From the config file</h2>
+    <p class="muted small" style="margin-top:-.5rem">Edit <code>{{ cfg.path }}</code> on the Pi and restart the services to change these.</p>
+    <dl class="kv">
+      <dt>NAS host</dt><dd>{{ cfg.get('upload.host') or '(local path)' }}</dd>
+      <dt>NAS user</dt><dd>{{ cfg.get('upload.user') }}</dd>
+      <dt>NAS folder</dt><dd><code>{{ cfg.get('upload.remote_dir') }}</code></dd>
+      <dt>Metered interface</dt><dd><code>{{ cfg.get('budget.interface') }}</code> × {{ cfg.get('budget.overhead') }}</dd>
+      <dt>Archive</dt><dd><code>{{ cfg.get('paths.archive_dir') }}</code></dd>
+      <dt>Scan interval</dt><dd>{{ cfg.get('car.scan_interval') }} s</dd>
+      <dt>Settle time</dt><dd>{{ cfg.get('car.settle_seconds') }} s before upload or car cleanup</dd>
+    </dl>
+  </div>
+</div>
+{% endblock %}

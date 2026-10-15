@@ -1,0 +1,20 @@
+[Unit]
+Description=TeslaCam: upload archived clips to the NAS over Tailscale
+After=network-online.target tailscaled.service teslacam-archiver.service
+Wants=network-online.target
+RequiresMountsFor=/archive
+
+[Service]
+User=teslacam
+Group=teslacam
+WorkingDirectory=/opt/teslacam
+Environment=PYTHONPATH=/opt/teslacam PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m teslacam uploader
+Restart=always
+RestartSec=30
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "_macros.html" import upload_badge, type_badge %}
+{% block title %}Events{% endblock %}
+{% block content %}
+<div class="stats">
+  <div class="stat"><div class="label">Events on Pi</div><div class="value">{{ summary.events }}</div><div class="muted small">{{ summary.bytes|bytes }}</div></div>
+  <div class="stat"><div class="label">Waiting to upload</div><div class="value">{{ summary.pending.events }}</div><div class="muted small">{{ summary.pending.bytes|bytes }}</div></div>
+  <div class="stat"><div class="label">Data this period</div><div class="value">{{ summary.used|bytes }}</div><div class="muted small">of {{ summary.budget|bytes }}</div></div>
+  <div class="stat"><div class="label">Uploader</div><div class="value" style="text-transform:capitalize">{{ summary.uploader.state or 'not running' }}</div><div class="muted small">{{ summary.uploader.at|ago if summary.uploader.at else '' }}</div></div>
+</div>
+
+<form class="filters" method="get">
+  <select name="type" onchange="this.form.submit()">
+    <option value="">All types</option>
+    <option value="SentryClips" {{ 'selected' if args.type == 'SentryClips' }}>Sentry</option>
+    <option value="SavedClips" {{ 'selected' if args.type == 'SavedClips' }}>Saved</option>
+  </select>
+  <select name="status" onchange="this.form.submit()">
+    <option value="">Any status</option>
+    {% for v, l in [('pending','Not uploaded'),('partial','Partly uploaded'),('uploaded','On NAS'),('failed','Upload failed'),('protected','Protected')] %}
+    <option value="{{ v }}" {{ 'selected' if args.status == v }}>{{ l }}</option>
+    {% endfor %}
+  </select>
+  <input type="date" name="date" value="{{ args.date or '' }}" onchange="this.form.submit()">
+  <input type="search" name="q" value="{{ args.q or '' }}" placeholder="City or reason">
+  <button class="btn" type="submit">Filter</button>
+  {% if args %}<a class="btn" href="{{ url_for('events') }}">Clear</a>{% endif %}
+</form>
+
+{% if events %}
+<form id="bulk" method="post" action="{{ url_for('events_bulk') }}">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="events">
+    {% for e in events %}
+    <article class="event-card">
+      <label class="select" title="Select"><input type="checkbox" name="ids" value="{{ e.id }}" aria-label="Select event {{ e.ts|dt }}"></label>
+      <a class="cover" href="{{ url_for('event', event_id=e.id) }}">
+        <img class="thumb" loading="lazy" alt="" src="{{ url_for('media', event_id=e.id, name='thumb.png') }}"
+             onerror="this.outerHTML='<div class=&quot;thumb placeholder&quot;>No thumbnail</div>'">
+      </a>
+      <div class="body">
+        <a class="when" href="{{ url_for('event', event_id=e.id) }}" style="text-decoration:none">{{ e.ts|dt }}</a>
+        <div class="meta">{{ e.reason|reason or '—' }}{% if e.city %} · {{ e.city }}{% endif %}</div>
+        <div class="badges">
+          {{ type_badge(e.type) }}
+          {{ upload_badge(e) }}
+          {% if e.protected %}<span class="badge info">🔒 Protected</span>{% endif %}
+          <span class="badge">{{ e.bytes|bytes }}</span>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  <div class="bulkbar" id="bulkbar">
+    <strong id="bulkcount">0 selected</strong>
+    <button class="btn sm" name="action" value="upload">Upload now</button>
+    <button class="btn sm" name="action" value="protect">Protect</button>
+    <button class="btn sm" name="action" value="unprotect">Unprotect</button>
+    <button class="btn sm danger" name="action" value="delete" onclick="return confirm('Delete the selected events from the Pi? Copies already on the NAS are kept.')">Delete</button>
+    <button class="btn sm" type="button" id="selectall">Select all</button>
+  </div>
+</form>
+
+<div class="pager">
+  {% if page > 1 %}<a class="btn" href="{{ url_for('events', **dict(args, page=page-1)) }}">← Newer</a>{% endif %}
+  {% if has_next %}<a class="btn" href="{{ url_for('events', **dict(args, page=page+1)) }}">Older →</a>{% endif %}
+</div>
+{% else %}
+<div class="card empty">
+  <h2>No events yet</h2>
+  <p>Sentry and Saved clips show up here a couple of minutes after the car records them.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var form = document.getElementById('bulk');
+  if (!form) return;
+  var bar = document.getElementById('bulkbar'), count = document.getElementById('bulkcount');
+  function boxes() { return form.querySelectorAll('input[name=ids]'); }
+  function update() {
+    var n = form.querySelectorAll('input[name=ids]:checked').length;
+    bar.classList.toggle('show', n > 0);
+    count.textContent = n + ' selected';
+  }
+  form.addEventListener('change', update);
+  document.getElementById('selectall').addEventListener('click', function () {
+    var all = boxes(), any = Array.prototype.some.call(all, function (b) { return !b.checked; });
+    all.forEach(function (b) { b.checked = any; });
+    update();
+  });
+})();
+</script>
+{% endblock %}
