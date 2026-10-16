@@ -53,8 +53,13 @@ The rest of each event follows while the budget allows.
 
 ## Install
 
-1. Flash **Raspberry Pi OS Lite (32-bit, Bookworm)** with Raspberry Pi Imager. In the Imager settings, enable SSH and enter the wifi network you'll use for setup (home wifi or the car hotspot). You can add more networks later from the UI's **Wifi** page.
-2. **Get the project onto the Pi.** Boot the Pi and SSH in (`ssh <your-user>@teslacam.local`, or use its IP address). Then use **one** of these:
+1. Flash **Raspberry Pi OS Lite (32-bit, Bookworm)** with Raspberry Pi Imager. When it asks whether to apply OS customisation, choose **Edit settings** and set:
+   - **Hostname:** `teslacam`. The Pi is then reachable as `teslacam.local` straight away.
+   - **Username and password:** your own login, e.g. `panos`. This is required: Bookworm has no default user, so headless SSH won't work without one. **Don't use `teslacam`**, because the installer creates that account for the services.
+   - **Wireless LAN:** the network you'll set up on (home wifi or the car hotspot), and the **wireless LAN country**. The wifi stays off until a country is set. You can add more networks later from the UI's **Wifi** page.
+   - **Locale:** your time zone. The data budget's billing day and the logs use the Pi's clock.
+   - **Services → Enable SSH:** preferably *Allow public-key authentication only*, pasting your Mac's key (`cat ~/.ssh/id_ed25519.pub`; create one with `ssh-keygen -t ed25519` if needed).
+2. **Get the project onto the Pi.** Boot the Pi, give it 2–3 minutes on first boot, and SSH in with the username you set: `ssh <your-user>@teslacam.local`, or use its IP address from your router. Then use **one** of these:
 
    **Option A: clone from GitHub (easiest to update).** The repo is private, so give the Pi a read-only **deploy key** first:
    ```bash
