@@ -132,6 +132,7 @@ class Uploader:
         self.metered = meter.available(cfg)
         self.failures = 0
         self.reachable_until = 0.0
+        self.next_idle_check = 0.0
 
     def state(self, state: str, **extra) -> None:
         db.set_status(self.conn, "uploader", {"state": state, "at": time.time(), **extra})
@@ -159,6 +160,7 @@ class Uploader:
         batch = next_batch(self.conn, self.cfg)
         if not batch:
             self.state("idle")
+            self.idle_check()
             return poll
 
         overhead = float(self.cfg.get("budget.overhead"))
@@ -169,14 +171,32 @@ class Uploader:
             return poll * 5
 
         if time.time() > self.reachable_until:
-            ok, err = check_reachable(self.cfg)
-            db.set_status(self.conn, "nas", {"reachable": ok, "error": err, "at": time.time()})
+            ok, err = self.check_nas()
             if not ok:
                 self.state("offline", error=err)
                 return poll
-            self.reachable_until = time.time() + 600
 
         return self.upload(batch)
+
+    def check_nas(self) -> Tuple[bool, str]:
+        """Probe the NAS and record the result for the UI. A success is trusted for 10 minutes."""
+        ok, err = check_reachable(self.cfg)
+        now = time.time()
+        db.set_status(self.conn, "nas", {"reachable": ok, "error": err, "at": now})
+        self.reachable_until = now + 600 if ok else 0.0
+        if not ok:
+            log.info("NAS not reachable: %s", err or "unknown error")
+        return ok, err
+
+    def idle_check(self) -> None:
+        """With nothing to upload, still probe the NAS now and then so the UI shows a broken link
+        (Tailscale down, NAS off, key removed) before the first clip needs it. Each probe is one
+        small SSH login (a few KB over tailscale0, counted in the budget)."""
+        minutes = float(self.cfg.get("upload.idle_check_minutes") or 0)
+        if minutes <= 0 or time.time() < self.next_idle_check:
+            return
+        self.next_idle_check = time.time() + minutes * 60
+        self.check_nas()
 
     def upload(self, batch: List[sqlite3.Row]) -> float:
         event_id = batch[0]["event_id"]

@@ -121,7 +121,7 @@ Then restart the services:
 sudo systemctl restart teslacam-uploader
 ```
 
-The UI's **Uploads** page should show the NAS as *reachable* within a minute.
+The UI's **Uploads** page should show the NAS as *reachable* within a minute. It checks again every 15 minutes while there's nothing to upload, and before every upload.
 
 ## 7. If the test fails
 

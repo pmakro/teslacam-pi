@@ -37,7 +37,7 @@ The rest of each event follows while the budget allows.
 - The Pi saves clips locally whether or not it is online.
 - Resuming: an interrupted file resumes from where it stopped, so bytes already sent aren't paid for twice. Files appear on the NAS only once they are complete.
 - Dead links: SSH keepalives and rsync's I/O timeout detect a frozen link within about 60–120 s.
-- NAS unreachable: before each batch the Pi runs a quick SSH check. If that fails, it waits and re-checks every minute.
+- NAS unreachable: before each batch the Pi runs a quick SSH check. If that fails, it waits and re-checks every minute. With nothing to upload it still checks every 15 minutes (`upload.idle_check_minutes`), so the UI shows a broken link before the first clip needs it.
 - Retries: failed batches back off 1 → 2 → 4 → 8 → 15 min.
 - What counts as a failure: connection errors (rsync exit codes 10, 12, 30, 35, 255) only mean "offline" and are retried indefinitely. Only real errors, such as permission denied or the NAS disk being full, count toward the 5 attempts after which a file is marked failed.
 - Wifi watchdog: if the hotspot's gateway hasn't answered for 10 minutes, the watchdog alternates between toggling the radio and reloading the wifi driver (the usual fix for the Zero W's wedged brcmfmac chip). Between attempts it backs off up to 1 h, so a hotspot that is simply off doesn't cause a restart storm. It never reboots the Pi, since that would pull the drive from the car.

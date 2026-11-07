@@ -145,3 +145,37 @@ def test_reachability_check_uses_rsync_listing(env, monkeypatch):
     assert seen["cmd"][:2] == ["rsync", "--list-only"]
     assert seen["cmd"][-1] == "teslacam@100.64.0.5:/volume1/TeslaCam/"
     assert "true" not in seen["cmd"]
+
+
+def test_idle_uploader_still_checks_nas(env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(uploader, "check_reachable", lambda cfg: calls.append(1) or (True, ""))
+    up = uploader.Uploader(env.conn, env.cfg)
+    up.step()
+    assert db.status(env.conn, "uploader")["state"] == "idle"
+    assert db.status(env.conn, "nas")["reachable"] is True
+    up.step()
+    assert len(calls) == 1  # not again until idle_check_minutes have passed
+    up.next_idle_check = 0
+    up.step()
+    assert len(calls) == 2
+
+
+def test_idle_check_reports_unreachable_nas(env, monkeypatch):
+    monkeypatch.setattr(uploader, "check_reachable", lambda cfg: (False, "Connection timed out"))
+    up = uploader.Uploader(env.conn, env.cfg)
+    up.step()
+    nas = db.status(env.conn, "nas")
+    assert nas["reachable"] is False and nas["error"] == "Connection timed out"
+    assert db.status(env.conn, "uploader")["state"] == "idle"
+
+
+def test_idle_check_can_be_disabled_and_skips_when_paused(env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(uploader, "check_reachable", lambda cfg: calls.append(1) or (True, ""))
+    env.cfg.data["upload"]["idle_check_minutes"] = 0
+    uploader.Uploader(env.conn, env.cfg).step()
+    env.cfg.data["upload"]["idle_check_minutes"] = 15
+    db.set_setting(env.conn, "upload.paused", True)
+    uploader.Uploader(env.conn, env.cfg).step()
+    assert calls == []

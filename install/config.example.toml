@@ -27,6 +27,7 @@ ssh_key = "/home/teslacam/.ssh/id_ed25519"
 bwlimit_kbps = 0                         # (UI) 0 = unlimited
 max_batch_files = 12
 max_attempts = 5                         # per file, then it is marked failed until you retry it in the UI
+idle_check_minutes = 15                  # with nothing to upload, check the NAS this often (0 = only before uploads)
 
 [budget]
 monthly_gb = 20                          # (UI) mobile data allowance for uploads

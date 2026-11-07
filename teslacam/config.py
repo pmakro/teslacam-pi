@@ -46,6 +46,7 @@ DEFAULTS: Dict[str, Dict[str, Any]] = {
         "max_batch_files": 12,
         "max_attempts": 5,
         "poll_interval": 60,
+        "idle_check_minutes": 15,
     },
     "budget": {
         "monthly_gb": 20.0,
