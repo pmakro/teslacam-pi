@@ -56,7 +56,7 @@ The rest of each event follows while the budget allows.
 1. Flash **Raspberry Pi OS Lite (32-bit, Bookworm)** with Raspberry Pi Imager. When it asks whether to apply OS customisation, choose **Edit settings** and set:
    - **Hostname:** `teslacam`. The Pi is then reachable as `teslacam.local` straight away.
    - **Username and password:** your own login, e.g. `panos`. This is required: Bookworm has no default user, so headless SSH won't work without one. **Don't use `teslacam`**, because the installer creates that account for the services.
-   - **Wireless LAN:** the network you'll set up on (home wifi or the car hotspot), and the **wireless LAN country**. The wifi stays off until a country is set. You can add more networks later from the UI's **Wifi** page.
+   - **Wireless LAN:** the network you'll set up on, and the **wireless LAN country**. The wifi stays off until a country is set. **Home wifi is easiest**; add the car hotspot later from the UI's **Wifi** page. The Pi Zero W only supports **2.4 GHz** networks with **WPA2** (or WPA2/WPA3 mixed), so 5 GHz-only and WPA3-only networks are invisible to it. On an iPhone hotspot, turn on *Maximize Compatibility*.
    - **Locale:** your time zone. The data budget's billing day and the logs use the Pi's clock.
    - **Services → Enable SSH:** preferably *Allow public-key authentication only*, pasting your Mac's key (`cat ~/.ssh/id_ed25519.pub`; create one with `ssh-keygen -t ed25519` if needed).
 2. **Get the project onto the Pi.** Boot the Pi, give it 2–3 minutes on first boot, and SSH in with the username you set: `ssh <your-user>@teslacam.local`, or use its IP address from your router. Then use **one** of these:
@@ -110,6 +110,8 @@ The rest of each event follows while the budget allows.
 On the NAS, clips land in `<remote_dir>/SentryClips/<event>/…` and `<remote_dir>/SavedClips/<event>/…`, in the same layout the car uses.
 
 ## Wifi networks and the setup hotspot
+
+> The setup hotspot is part of TeslaCam, so it only exists **after `setup.sh` has run** and the Pi has rebooted. Before that, the Pi only knows the wifi you entered in Raspberry Pi Imager. If you can't reach it on first boot, see the 2.4 GHz/WPA2 note in step 1 of the install.
 
 The Pi remembers any number of wifi networks and joins whichever saved one is in range. Manage them on the UI's **Wifi** page, where you can scan, add, connect and forget networks.
 
