@@ -15,7 +15,7 @@ import time
 import zipfile
 from datetime import datetime
 from typing import Optional
-from urllib.parse import urlsplit
+from urllib.parse import urlparse, urlsplit
 
 from flask import (Flask, Response, abort, flash, g, redirect, render_template, request,
                    send_file, session, url_for)
@@ -175,7 +175,11 @@ def create_app(cfg: Config, wifi_backend=None) -> Flask:
                 session.clear()
                 session["auth"] = True
                 session.permanent = True
-                return redirect(local_url(request.args.get("next"), url_for("events")))
+                nxt = local_url(request.args.get("next"), "")
+                # Repeated inline (CodeQL's documented form) so the scanner sees the check.
+                if nxt and not urlparse(nxt).netloc and not urlparse(nxt).scheme:
+                    return redirect(nxt)
+                return redirect(url_for("events"))
             time.sleep(1)
             flash("Wrong password", "error")
         return render_template("login.html")
@@ -241,7 +245,11 @@ def create_app(cfg: Config, wifi_backend=None) -> Flask:
         if action in ("upload", "reupload"):
             wake_uploader()
         flash(f"{action.capitalize() if action else 'Nothing'}: {len(ids)} event(s)", "ok")
-        return redirect(local_url(request.referrer, url_for("events")))
+        back = local_url(request.referrer, "")
+        # Repeated inline (CodeQL's documented form) so the scanner sees the check.
+        if back and not urlparse(back).netloc and not urlparse(back).scheme:
+            return redirect(back)
+        return redirect(url_for("events"))
 
     def _apply_action(c, eid: str, action: Optional[str]) -> None:
         if action == "delete":
