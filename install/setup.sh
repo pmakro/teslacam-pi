@@ -48,10 +48,14 @@ if ! grep -q '^dtoverlay=dwc2' $BOOT/config.txt; then
   REBOOT_NEEDED=1
 fi
 grep -qx dwc2 /etc/modules || { echo dwc2 >> /etc/modules; REBOOT_NEEDED=1; }
-# Hardware watchdog: reboot if the Pi hangs.
-grep -q '^dtparam=watchdog=on' $BOOT/config.txt || { echo 'dtparam=watchdog=on' >> $BOOT/config.txt; REBOOT_NEEDED=1; }
-mkdir -p /etc/systemd/system.conf.d
-printf '[Manager]\nRuntimeWatchdogSec=15\n' > /etc/systemd/system.conf.d/teslacam-watchdog.conf
+# No systemd hardware watchdog: the Pi's chip allows at most 15 s, and on a single-core Zero W a
+# `systemctl daemon-reload` (run by this script, apt and package installs) can block systemd for
+# longer, so the watchdog hard-reset the Pi mid-install. A reset also pulls the drive from the car.
+# Remove the setting left by earlier versions of this script and switch it off right away, before
+# the daemon-reloads below (systemd 249+ allows changing it at runtime).
+rm -f /etc/systemd/system.conf.d/teslacam-watchdog.conf
+busctl set-property org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager \
+  RuntimeWatchdogUSec t 0 2>/dev/null || true
 
 # ---------------------------------------------------------------------------------------------
 log "Creating user $USER_NAME"
