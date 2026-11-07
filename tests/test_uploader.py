@@ -179,3 +179,18 @@ def test_idle_check_can_be_disabled_and_skips_when_paused(env, monkeypatch):
     db.set_setting(env.conn, "upload.paused", True)
     uploader.Uploader(env.conn, env.cfg).step()
     assert calls == []
+
+
+def test_failed_idle_check_retries_soon_then_backs_off(env, monkeypatch):
+    results = [False, False, True]
+    monkeypatch.setattr(uploader, "check_reachable", lambda cfg: (results.pop(0), "timed out"))
+    monkeypatch.setattr(uploader.time, "time", lambda: 1000.0)
+    up = uploader.Uploader(env.conn, env.cfg)
+    up.idle_check()
+    assert up.next_idle_check == 1000 + 60
+    up.next_idle_check = 0
+    up.idle_check()
+    assert up.next_idle_check == 1000 + 120
+    up.next_idle_check = 0
+    up.idle_check()
+    assert up.next_idle_check == 1000 + 15 * 60 and up.idle_failures == 0

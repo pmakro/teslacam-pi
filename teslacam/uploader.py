@@ -133,6 +133,7 @@ class Uploader:
         self.failures = 0
         self.reachable_until = 0.0
         self.next_idle_check = 0.0
+        self.idle_failures = 0
 
     def state(self, state: str, **extra) -> None:
         db.set_status(self.conn, "uploader", {"state": state, "at": time.time(), **extra})
@@ -195,8 +196,15 @@ class Uploader:
         minutes = float(self.cfg.get("upload.idle_check_minutes") or 0)
         if minutes <= 0 or time.time() < self.next_idle_check:
             return
-        self.next_idle_check = time.time() + minutes * 60
-        self.check_nas()
+        ok, _ = self.check_nas()
+        if ok:
+            self.idle_failures = 0
+            wait = minutes * 60
+        else:
+            # Often just a race after boot (Tailscale not connected yet): retry after 1, 2, 4, ... min.
+            self.idle_failures += 1
+            wait = min(60 * 2 ** (self.idle_failures - 1), minutes * 60)
+        self.next_idle_check = time.time() + wait
 
     def upload(self, batch: List[sqlite3.Row]) -> float:
         event_id = batch[0]["event_id"]

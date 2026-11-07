@@ -32,7 +32,7 @@
     {% endif %}
     <dl class="kv" style="margin-top:1rem">
       <dt>Destination</dt><dd><code>{{ destination }}</code></dd>
-      <dt>NAS</dt><dd>{% if nas.at %}{% if nas.reachable %}<span class="badge ok">reachable</span>{% else %}<span class="badge err">unreachable</span>{% endif %} <span class="muted small">checked {{ nas.at|ago }}</span>{% else %}<span class="muted">not checked yet</span>{% endif %}</dd>
+      <dt>NAS</dt><dd>{% if nas.at %}{% if nas.reachable %}<span class="badge ok">reachable</span>{% else %}<span class="badge err">unreachable</span>{% endif %} <span class="muted small">checked {{ nas.at|ago }}</span>{% if not nas.reachable and nas.error %}<div class="err-text" title="{{ nas.error }}">{{ nas.error.strip().splitlines()[0] }}</div>{% endif %}{% else %}<span class="muted">not checked yet</span>{% endif %}</dd>
       <dt>Last upload</dt><dd>{% if last %}{{ last.at|ago }}: {{ last.files }} file(s), {{ last.bytes|bytes }}{% else %}never{% endif %}</dd>
       <dt>Waiting</dt><dd>{{ summary.pending.events }} event(s), {{ summary.pending.files }} file(s), {{ summary.pending.bytes|bytes }}</dd>
       <dt>Heartbeat</dt><dd>{{ heartbeat|ago }}</dd>

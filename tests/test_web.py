@@ -100,3 +100,10 @@ def test_login(env):
     assert c.post("/login", data={"password": "nope", "csrf": token}).status_code == 200
     assert c.post("/login", data={"password": "secret", "csrf": token}).status_code == 302
     assert c.get("/").status_code == 200
+
+
+def test_uploads_page_shows_nas_error(client, env):
+    db.set_status(env.conn, "nas", {"reachable": False, "at": 1.0,
+                                    "error": "ssh: connect to host 100.64.0.5 port 22: Connection timed out\nrsync: closed"})
+    html = client.get("/uploads").get_data(as_text=True)
+    assert "unreachable" in html and "port 22: Connection timed out</div>" in html
