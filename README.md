@@ -58,8 +58,12 @@ The rest of each event follows while the budget allows.
    - **Username and password:** your own login, e.g. `panos`. This is required: Bookworm has no default user, so headless SSH won't work without one. **Don't use `teslacam`**, because the installer creates that account for the services.
    - **Wireless LAN:** the network you'll set up on, and the **wireless LAN country**. The wifi stays off until a country is set. **Home wifi is easiest**; add the car hotspot later from the UI's **Wifi** page. The Pi Zero W only supports **2.4 GHz** networks with **WPA2** (or WPA2/WPA3 mixed), so 5 GHz-only and WPA3-only networks are invisible to it. On an iPhone hotspot, turn on *Maximize Compatibility*.
    - **Locale:** your time zone. The data budget's billing day and the logs use the Pi's clock.
-   - **Services → Enable SSH:** preferably *Allow public-key authentication only*, pasting your Mac's key (`cat ~/.ssh/id_ed25519.pub`; create one with `ssh-keygen -t ed25519` if needed).
-2. **Get the project onto the Pi.** Boot the Pi, give it 2–3 minutes on first boot, and SSH in with the username you set: `ssh <your-user>@teslacam.local`, or use its IP address from your router. Then use **one** of these:
+   - **Services → Enable SSH:** preferably *Allow public-key authentication only*, pasting your Mac's **public** key: the single line in `~/.ssh/id_ed25519.pub`, which starts with `ssh-ed25519 AAAA…` (copy it with `pbcopy < ~/.ssh/id_ed25519.pub`; create one with `ssh-keygen -t ed25519` if needed). Never paste the private key (`-----BEGIN OPENSSH PRIVATE KEY-----`).
+
+   The Wireless LAN setting is required for a headless install: a freshly flashed Pi does **not** start the `TeslaCam-Setup` hotspot. That only exists once `setup.sh` has run.
+
+   **Power it properly while installing.** Use a 5V supply of 2A or more on the **PWR** port. A USB outlet on another device (a camera, a router) often can't supply the Zero W's peak current under full load, and the Pi then resets without any log entry.
+2. **Get the project onto the Pi.** Boot the Pi and give it 3–5 minutes on first boot: it resizes the SD card, applies the Imager settings and reboots once, and SSH only answers after that (`Connection refused` until then). SSH in with the username you set: `ssh <your-user>@teslacam.local`, or use its IP address from your router. Then use **one** of these:
 
    **Option A: clone from GitHub (easiest to update).** The repo is private, so give the Pi a read-only **deploy key** first:
    ```bash
@@ -72,7 +76,7 @@ The rest of each event follows while the budget allows.
    GIT_SSH_COMMAND="ssh -i ~/.ssh/teslacam_deploy -o IdentitiesOnly=yes" git clone git@github.com:pmakro/teslacam-pi.git ~/teslacam
    cd ~/teslacam && git config core.sshCommand "ssh -i ~/.ssh/teslacam_deploy -o IdentitiesOnly=yes"
    ```
-   To update later, on the Pi: `cd ~/teslacam && git pull`, then re-run the installer.
+   To update later, on the Pi: `cd ~/teslacam && git pull && sudo ./install/setup.sh`.
 
    **Option B: copy from your Mac (no GitHub needed).** From the project folder on the Mac, with the Pi on the same network:
    ```bash
@@ -80,12 +84,20 @@ The rest of each event follows while the budget allows.
    ```
    If it fails with `rsync: command not found`, run `sudo apt install -y rsync` on the Pi first. To update later, run the same command again, then re-run the installer.
 
-   **Then install (both options):**
+   **Then install (both options).** Run the installer inside `tmux`, so a dropped SSH connection can't stop it halfway (wifi is handed to NetworkManager and Tailscale is started during the install, and either can briefly cut the connection):
    ```bash
+   sudo apt install -y tmux
+   tmux
    cd ~/teslacam && sudo ./install/setup.sh
-   sudo reboot
    ```
-   Re-running the installer after an update is safe: your config and clips are kept. You can override the drive size with `CAM_SIZE_GB=64`.
+   If the connection drops, SSH in again and run `tmux attach` to get back to the running installer.
+
+   What to expect:
+   - The first step, **Installing packages**, prints nothing for **10–30 minutes** on a Zero W. In another SSH window, `top` shows `apt`, `dpkg` or `mkinitramfs` busy; that's normal. Don't press Ctrl-C.
+   - Each step prints a green `==>` line. The install has worked when it ends with **`TeslaCam installed.`**, the *Next steps* list, the UI address and the `TeslaCam-Setup` hotspot name and password (also saved in `/etc/teslacam/config.toml`).
+   - On the first install it asks for a reboot (USB gadget mode): `sudo reboot`.
+
+   Re-running the installer is safe, after an update or an interrupted install: each step skips what is already done, and your config and clips are kept. You can override the drive size with `CAM_SIZE_GB=64`.
 
    > **Two different SSH keys**, don't mix them up:
    > - the **deploy key** (`~/.ssh/teslacam_deploy`, Option A only) only lets the Pi *read* the GitHub repo;
@@ -93,10 +105,14 @@ The rest of each event follows while the budget allows.
 
 3. **Set up the NAS and Tailscale.** For Synology DSM 7 there is a step-by-step guide: **[docs/nas-setup-synology.md](docs/nas-setup-synology.md)**. It covers Tailscale on both ends, key expiry, the shared folder and user, SSH/rsync, the firewall, installing the Pi's key, a test command and troubleshooting.
    On other NAS systems you need the same pieces: Tailscale, SSH with rsync, a user with write access to one folder, and the Pi's public key in that user's `~/.ssh/authorized_keys`.
-4. Edit `/etc/teslacam/config.toml` (see [config.example.toml](install/config.example.toml)):
-   - `[upload] host`: the NAS's Tailscale IP (`100.x.y.z`). Also set `user` and `remote_dir`.
-   - `[budget] monthly_gb` and `billing_day`
-   - `[web] password_hash`: generate it with `sudo -u teslacam env PYTHONPATH=/opt/teslacam python3 -m teslacam hash-password`
+4. Edit `/etc/teslacam/config.toml` on the Pi with `sudo nano /etc/teslacam/config.toml` (see [config.example.toml](install/config.example.toml)):
+   - `[upload] host`: the NAS's Tailscale IP (`100.x.y.z`). `user` (`teslacam`) and `remote_dir` (`/volume1/TeslaCam`) are already filled in; change `remote_dir` if your shared folder is on another volume.
+   - `[budget] monthly_gb` and `billing_day` (both can also be changed later on the UI's **Settings** page)
+   - `[web] password_hash`: without it, anyone on the car hotspot can open the UI. This prompts for a password twice and writes its hash into the config:
+     ```bash
+     H=$(sudo -u teslacam env PYTHONPATH=/opt/teslacam python3 -m teslacam hash-password) && sudo sed -i "s|^password_hash = \".*\"|password_hash = \"$H\"|" /etc/teslacam/config.toml
+     ```
+     The hash is one line like `pbkdf2:sha256:150000$<salt>$<64 hex characters>`; it never contains the password itself.
 5. Test the connection the same way the uploader checks it, then restart the services:
    ```bash
    sudo -u teslacam rsync --list-only -e "ssh -i /home/teslacam/.ssh/id_ed25519" teslacam@100.x.y.z:/volume1/TeslaCam/
@@ -104,10 +120,30 @@ The rest of each event follows while the budget allows.
    ```bash
    sudo systemctl restart teslacam-archiver teslacam-uploader teslacam-web
    ```
+   It works if the listing appears without a password prompt. The UI's **Uploads** page then shows the NAS as *reachable* within about a minute. Right after a boot it may say *unreachable* until Tailscale has connected; it re-checks after 1, 2, 4… minutes, and shows the error under the badge if it stays down.
 6. In the [Tailscale admin console](https://login.tailscale.com/admin/machines), **disable key expiry** for the Pi and the NAS. Otherwise uploads stop after 180 days.
-7. Plug the Pi into the car. On the car's screen, check that the dashcam icon shows it recording. Trigger Sentry or tap the dashcam icon to save a clip; the clip appears in the UI within a few minutes.
+7. On the UI's **Wifi** page, add the **car hotspot** while you're still on home wifi, so the Pi joins it in the car.
+8. Shut the Pi down (`sudo shutdown now`) and plug it into the car. On the car's screen, check that the dashcam icon shows it recording. Trigger Sentry or tap the dashcam icon to save a clip; the clip appears in the UI within a few minutes.
 
 On the NAS, clips land in `<remote_dir>/SentryClips/<event>/…` and `<remote_dir>/SavedClips/<event>/…`, in the same layout the car uses.
+
+### Install troubleshooting
+
+| What you see | What it means |
+|---|---|
+| No `TeslaCam-Setup` network after flashing | Expected: the hotspot only exists after `setup.sh`. Re-flash with your wifi under **Wireless LAN** (2.4 GHz, WPA2), or use a USB Ethernet adapter. |
+| `ssh: … Connection refused` | The Pi is still on its first boot, or SSH wasn't enabled in Imager. Wait 5 minutes; otherwise create an empty file `ssh` on the `bootfs` partition (`touch /Volumes/bootfs/ssh`) and boot again. |
+| `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!` | Your Mac remembers the key of an earlier install at that address. After a re-flash that's expected: `ssh-keygen -R <pi-ip>` and `ssh-keygen -R teslacam.local`, then connect again. |
+| `perl: warning: Setting locale failed` / `setlocale: LC_CTYPE` | Harmless: macOS Terminal sends `LC_CTYPE=UTF-8`, which Linux doesn't know. Untick *Terminal → Settings → Profiles → Advanced → Set locale environment variables on startup*, or add `export LC_ALL=en_GB.UTF-8` to `~/.bashrc` on the Pi. |
+| Installer output stops and the SSH window freezes | The connection dropped (see `tmux` above). If the Pi also restarted (`uptime` shows a few minutes), check `vcgencmd get_throttled`: anything other than `0x0` means low voltage, so use a better power supply. |
+| `dpkg was interrupted, you must manually run 'sudo dpkg --configure -a'` | A package install was cut off. Run `sudo dpkg --configure -a`, then re-run the installer. |
+| `nano: command not found` | You're probably in the NAS's shell, not the Pi's (Synology has no nano). The config file is on the Pi. |
+
+Logs live in RAM, so they're gone after a restart. To keep them while you debug an unexpected restart:
+```bash
+sudo mkdir -p /etc/systemd/journald.conf.d /var/log/journal && printf '[Journal]\nStorage=persistent\n' | sudo tee /etc/systemd/journald.conf.d/zz-debug.conf && sudo systemctl restart systemd-journald
+```
+After the next restart, `journalctl -b -1 -n 60 --no-pager` shows the last messages before it. Delete `/etc/systemd/journald.conf.d/zz-debug.conf` when you're done, to spare the SD card.
 
 ## Wifi networks and the setup hotspot
 
@@ -184,7 +220,8 @@ install/        setup.sh, systemd units, config example
 
 - The setup hotspot needs NetworkManager (the default on Bookworm) plus a polkit rule that lets the `teslacam` user control it, which `setup.sh` installs. Some brcmfmac firmware versions are picky about WPA2 access-point mode. If phones can't join `TeslaCam-Setup`, check `journalctl -u teslacam-netwatch`.
 
-- **Not yet tested on real hardware.** The Python services, the uploader and the UI are covered by tests and were run locally. The Pi-specific parts (`setup.sh`, `priv.sh`, the gadget, XFS reflink snapshots and exFAT mounts) have only been syntax-checked so far. Expect to adjust a few things on the first install.
+- **Partly tested on real hardware.** `setup.sh`, Tailscale, the NAS connection and the UI have run on a Pi Zero W. The car side (the USB gadget in a Tesla, reflink snapshots and car-drive cleanup) hasn't been tried in a car yet. The Python services, the uploader and the UI are also covered by tests.
+- **No hardware watchdog.** The Pi's watchdog chip allows at most 15 s, and on a Zero W a `systemctl daemon-reload` (run by installs and `apt`) blocks systemd for longer, so a systemd watchdog would reset the Pi, and pull the drive from the car. Earlier versions of `setup.sh` enabled one; re-running the installer removes it.
 - A Zero W pushes roughly 3–6 MB/s through SSH inside WireGuard, which is CPU-bound but faster than a typical LTE uplink. Live playback in the UI is limited by the Zero W's 2.4 GHz wifi, so the player shows one camera by default.
 - The Pi only boots once the car powers the USB port. Keep the Pi on a port that stays powered while Sentry is armed.
 - Car-drive cleanup detaches the drive for a few seconds. It only runs when the drive is below the threshold and the car hasn't written for 90 s, but the car may briefly show a USB notice.

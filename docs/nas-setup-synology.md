@@ -98,7 +98,7 @@ The last command should list `authorized_keys` owned by `teslacam`, with permiss
 
 ## 6. Configure and test from the Pi
 
-Edit `/etc/teslacam/config.toml` on the Pi:
+Edit `/etc/teslacam/config.toml` **on the Pi** (`sudo nano /etc/teslacam/config.toml`; the NAS has no nano, and the file isn't there). `user` and `remote_dir` are already filled in, so usually only `host` changes:
 
 ```toml
 [upload]
@@ -121,7 +121,7 @@ Then restart the services:
 sudo systemctl restart teslacam-uploader
 ```
 
-The UI's **Uploads** page should show the NAS as *reachable* within a minute. It checks again every 15 minutes while there's nothing to upload, and before every upload.
+The UI's **Uploads** page should show the NAS as *reachable* within a minute. It checks again every 15 minutes while there's nothing to upload, and before every upload. Right after the Pi boots, the first check can run before Tailscale is connected and show *unreachable*; it retries after 1, 2, 4… minutes, and shows the error under the badge.
 
 ## 7. If the test fails
 
@@ -131,7 +131,7 @@ The UI's **Uploads** page should show the NAS as *reachable* within a minute. It
 | `Permission denied (publickey…)` or the connection closes right after login | DSM refused the login for a non-admin account. This differs between DSM 7 builds. Make sure **rsync** is allowed for the user and the **rsync service** is enabled (step 4). If it still fails, use the **fallback** below. |
 | `rsync: … Permission denied` on `/volume1/TeslaCam` | The user doesn't have **Read/Write** on the TeslaCam shared folder. |
 | `No such file or directory` | Wrong `remote_dir` (e.g. the share is on `/volume2`). |
-| `Connection timed out` | Tailscale isn't connected on one side (`tailscale status` on the Pi), or the DSM firewall is blocking `100.64.0.0/10` (step 4d). |
+| `Connection timed out` | Right after a boot this is usually Tailscale still connecting: wait a few minutes. Otherwise Tailscale isn't connected on one side (`tailscale status` on the Pi), or the DSM firewall is blocking `100.64.0.0/10` (step 4d). |
 | `Connection refused` | The SSH service is off, or uses a port other than 22. If you changed it, set `port = …` in `[upload]`. |
 
 **Fallback if DSM won't let a non-admin user in:** add `teslacam` to the **administrators** group (**Control Panel → User & Group → teslacam → User Groups**). DSM always allows SSH for admins. It still can only *write* where it has permission, but an admin account can do more if the Pi were stolen. If you use this fallback, do the hardening below.
