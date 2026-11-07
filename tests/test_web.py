@@ -107,3 +107,30 @@ def test_uploads_page_shows_nas_error(client, env):
                                     "error": "ssh: connect to host 100.64.0.5 port 22: Connection timed out\nrsync: closed"})
     html = client.get("/uploads").get_data(as_text=True)
     assert "unreachable" in html and "port 22: Connection timed out</div>" in html
+
+
+@pytest.mark.parametrize("target, expected", [
+    ("/uploads?x=1", "/uploads?x=1"),
+    ("http://localhost/system", "/system"),        # same-host Referer
+    ("//evil.example/", "/"),
+    ("/\\evil.example/", "/"),
+    ("https://evil.example/uploads", "/"),
+    ("javascript:alert(1)", "/"),
+    ("uploads", "/"),
+    ("", "/"),
+    (None, "/"),
+])
+def test_local_url_keeps_redirects_on_site(env, target, expected):
+    from teslacam.web.app import local_url
+    app = create_app(env.cfg)
+    with app.test_request_context("/", base_url="http://localhost"):
+        assert local_url(target, "/") == expected
+
+
+def test_login_does_not_redirect_off_site(env):
+    env.cfg.data["web"]["password_hash"] = generate_password_hash("secret", method="pbkdf2:sha256:1000")
+    c = create_app(env.cfg).test_client()
+    page = c.get("/login").get_data(as_text=True)
+    token = re.search(r'name="csrf" value="([0-9a-f]+)"', page).group(1)
+    res = c.post("/login?next=/%5Cevil.example/", data={"password": "secret", "csrf": token})
+    assert res.status_code == 302 and "evil" not in res.headers["Location"]

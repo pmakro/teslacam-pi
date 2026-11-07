@@ -72,6 +72,8 @@
     pendingSeek = t || 0;
     videos.forEach(function (v) {
       var url = segments[i].files[v.dataset.cam];
+      // Only ever play this UI's own media URLs.
+      if (typeof url !== 'string' || url.indexOf('/media/') !== 0) url = null;
       if (url) { v.src = url; v.style.visibility = ''; } else { v.removeAttribute('src'); v.style.visibility = 'hidden'; }
       v.playbackRate = parseFloat(rateEl.value);
       v.load();

@@ -15,6 +15,7 @@ import time
 import zipfile
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlsplit
 
 from flask import (Flask, Response, abort, flash, g, redirect, render_template, request,
                    send_file, session, url_for)
@@ -76,6 +77,24 @@ def pretty_reason(reason: str) -> str:
         if reason.startswith(key):
             return label
     return reason.replace("_", " ").capitalize() if reason else ""
+
+
+def local_url(target: Optional[str], fallback: str) -> str:
+    """Return `target` as a path on this site, or `fallback`, so redirects can't leave the UI.
+
+    Accepts same-host absolute URLs (the Referer header) and reduces them to path + query.
+    Rejects other hosts, schemes, and tricks like `//evil` or `/\\evil` that browsers read as
+    a host.
+    """
+    if not target:
+        return fallback
+    parts = urlsplit(target.replace("\\", "/"))
+    if parts.scheme not in ("", "http", "https") or (parts.netloc and parts.netloc != request.host):
+        return fallback
+    path = parts.path
+    if not path.startswith("/") or path.startswith("//"):
+        return fallback
+    return path + ("?" + parts.query if parts.query else "")
 
 
 def create_app(cfg: Config, wifi_backend=None) -> Flask:
@@ -155,8 +174,7 @@ def create_app(cfg: Config, wifi_backend=None) -> Flask:
                 session.clear()
                 session["auth"] = True
                 session.permanent = True
-                nxt = request.args.get("next", "")
-                return redirect(nxt if nxt.startswith("/") and not nxt.startswith("//") else url_for("events"))
+                return redirect(local_url(request.args.get("next"), url_for("events")))
             time.sleep(1)
             flash("Wrong password", "error")
         return render_template("login.html")
@@ -222,7 +240,7 @@ def create_app(cfg: Config, wifi_backend=None) -> Flask:
         if action in ("upload", "reupload"):
             wake_uploader()
         flash(f"{action.capitalize() if action else 'Nothing'}: {len(ids)} event(s)", "ok")
-        return redirect(request.referrer or url_for("events"))
+        return redirect(local_url(request.referrer, url_for("events")))
 
     def _apply_action(c, eid: str, action: Optional[str]) -> None:
         if action == "delete":
