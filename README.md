@@ -2,6 +2,8 @@
 
 A Raspberry Pi Zero W that plugs into your Tesla as its USB drive. It keeps every **Sentry** and **Saved** clip and uploads them to your **home NAS** over the in-car LTE hotspot, using Tailscale and staying within a **monthly data budget**. It also serves a **web UI** for browsing, playing, downloading, protecting and deleting clips.
 
+> **Unofficial.** This is a hobby project, not affiliated with or endorsed by Tesla, Inc. "Tesla" and "TeslaCam" are Tesla's trademarks and are used here only to describe what the project works with. Use it at your own risk.
+
 This project was inspired by [milesburton/teslacam](https://github.com/milesburton/teslacam), and its snapshot technique follows [marcone/teslausb](https://github.com/marcone/teslausb). There is no Docker and no Node: it is plain Python and systemd, light enough for the single-core ARMv6 Zero W.
 
 ```
@@ -65,16 +67,10 @@ The rest of each event follows while the budget allows.
    **Power it properly while installing.** Use a 5V supply of 2A or more on the **PWR** port. A USB outlet on another device (a camera, a router) often can't supply the Zero W's peak current under full load, and the Pi then resets without any log entry.
 2. **Get the project onto the Pi.** Boot the Pi and give it 3–5 minutes on first boot: it resizes the SD card, applies the Imager settings and reboots once, and SSH only answers after that (`Connection refused` until then). SSH in with the username you set: `ssh <your-user>@teslacam.local`, or use its IP address from your router. Then use **one** of these:
 
-   **Option A: clone from GitHub (easiest to update).** The repo is private, so give the Pi a read-only **deploy key** first:
+   **Option A: clone from GitHub (easiest to update).**
    ```bash
    sudo apt install -y git
-   ssh-keygen -t ed25519 -N "" -C "teslacam-pi deploy" -f ~/.ssh/teslacam_deploy
-   cat ~/.ssh/teslacam_deploy.pub
-   ```
-   Add the printed key at **GitHub → pmakro/teslacam-pi → Settings → Deploy keys → Add deploy key**, leaving *Allow write access* **unticked**. Then clone:
-   ```bash
-   GIT_SSH_COMMAND="ssh -i ~/.ssh/teslacam_deploy -o IdentitiesOnly=yes" git clone git@github.com:pmakro/teslacam-pi.git ~/teslacam
-   cd ~/teslacam && git config core.sshCommand "ssh -i ~/.ssh/teslacam_deploy -o IdentitiesOnly=yes"
+   git clone https://github.com/pmakro/teslacam-pi.git ~/teslacam
    ```
    To update later, on the Pi: `cd ~/teslacam && git pull && sudo ./install/setup.sh`.
 
@@ -99,9 +95,7 @@ The rest of each event follows while the budget allows.
 
    Re-running the installer is safe, after an update or an interrupted install: each step skips what is already done, and your config and clips are kept. You can override the drive size with `CAM_SIZE_GB=64`.
 
-   > **Two different SSH keys**, don't mix them up:
-   > - the **deploy key** (`~/.ssh/teslacam_deploy`, Option A only) only lets the Pi *read* the GitHub repo;
-   > - the **upload key** (`/home/teslacam/.ssh/id_ed25519`) lets the Pi log in to the NAS. `setup.sh` generates it automatically and prints its public part at the end. You add it to the NAS in step 3. To print it again: `sudo cat /home/teslacam/.ssh/id_ed25519.pub`
+   > **The upload key** (`/home/teslacam/.ssh/id_ed25519`) lets the Pi log in to the NAS. `setup.sh` generates it automatically and prints its public part at the end. You add it to the NAS in step 3. To print it again: `sudo cat /home/teslacam/.ssh/id_ed25519.pub`. It is a different key from your Mac's login key in step 1.
 
 3. **Set up the NAS and Tailscale.** For Synology DSM 7 there is a step-by-step guide: **[docs/nas-setup-synology.md](docs/nas-setup-synology.md)**. It covers Tailscale on both ends, key expiry, the shared folder and user, SSH/rsync, the firewall, installing the Pi's key, a test command and troubleshooting.
    On other NAS systems you need the same pieces: Tailscale, SSH with rsync, a user with write access to one folder, and the Pi's public key in that user's `~/.ssh/authorized_keys`.
@@ -226,3 +220,7 @@ install/        setup.sh, systemd units, config example
 - The Pi only boots once the car powers the USB port. Keep the Pi on a port that stays powered while Sentry is armed.
 - Car-drive cleanup detaches the drive for a few seconds. It only runs when the drive is below the threshold and the car hasn't written for 90 s, but the car may briefly show a USB notice.
 - RecentClips (the rolling dashcam buffer) are ignored on purpose.
+
+## License
+
+[MIT](LICENSE)
