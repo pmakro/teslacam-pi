@@ -113,7 +113,9 @@ def test_uploads_page_shows_nas_error(client, env):
     ("/uploads?x=1", "/uploads?x=1"),
     ("http://localhost/system", "/system"),        # same-host Referer
     ("//evil.example/", "/"),
-    ("/\\evil.example/", "/"),
+    ("/\\evil.example/", "/evil.example/"),  # backslash dropped: a local path, not a host
+    ("http://localhost//evil.example/", "/"),
+    ("http:/evil.example", "/"),
     ("https://evil.example/uploads", "/"),
     ("javascript:alert(1)", "/"),
     ("uploads", "/"),
@@ -133,4 +135,6 @@ def test_login_does_not_redirect_off_site(env):
     page = c.get("/login").get_data(as_text=True)
     token = re.search(r'name="csrf" value="([0-9a-f]+)"', page).group(1)
     res = c.post("/login?next=/%5Cevil.example/", data={"password": "secret", "csrf": token})
-    assert res.status_code == 302 and "evil" not in res.headers["Location"]
+    from urllib.parse import urlsplit
+    loc = urlsplit(res.headers["Location"])
+    assert res.status_code == 302 and loc.netloc in ("", "localhost") and not loc.path.startswith("//")

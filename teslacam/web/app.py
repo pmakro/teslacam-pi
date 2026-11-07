@@ -82,19 +82,20 @@ def pretty_reason(reason: str) -> str:
 def local_url(target: Optional[str], fallback: str) -> str:
     """Return `target` as a path on this site, or `fallback`, so redirects can't leave the UI.
 
-    Accepts same-host absolute URLs (the Referer header) and reduces them to path + query.
-    Rejects other hosts, schemes, and tricks like `//evil` or `/\\evil` that browsers read as
-    a host.
+    A same-host absolute URL (the Referer header) is first reduced to path + query. What is
+    returned must then have no scheme and no host (the check CodeQL documents for
+    py/url-redirection); backslashes are dropped because browsers read `/\\evil` as `//evil`.
     """
     if not target:
         return fallback
-    parts = urlsplit(target.replace("\\", "/"))
-    if parts.scheme not in ("", "http", "https") or (parts.netloc and parts.netloc != request.host):
-        return fallback
-    path = parts.path
-    if not path.startswith("/") or path.startswith("//"):
-        return fallback
-    return path + ("?" + parts.query if parts.query else "")
+    target = target.replace("\\", "")
+    parts = urlsplit(target)
+    if parts.scheme in ("http", "https") and parts.netloc == request.host:
+        target = parts.path + ("?" + parts.query if parts.query else "")
+    parsed = urlsplit(target)
+    if not parsed.scheme and not parsed.netloc and target.startswith("/"):
+        return target
+    return fallback
 
 
 def create_app(cfg: Config, wifi_backend=None) -> Flask:
