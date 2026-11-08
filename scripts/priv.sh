@@ -29,11 +29,16 @@ fsck_image() {
   fsck.exfat -y "$dev" >/dev/null 2>&1 || true
 }
 
-# The usual cure for a wedged brcmfmac chip on the Pi Zero W. brcmfmac_wcc only exists on newer
-# kernels, and has to go first because it holds brcmfmac.
+# The usual cure for a wedged brcmfmac chip on the Pi Zero W. Newer kernels load a vendor module
+# (brcmfmac_cyw on the Zero W) that holds brcmfmac, so whatever holds it has to go first.
 reload_wifi_driver() {
-  modprobe -r brcmfmac_wcc 2>/dev/null || true
-  modprobe -r brcmfmac 2>/dev/null || true
+  local holder output
+  for holder in /sys/module/brcmfmac/holders/*; do
+    [ -e "$holder" ] && modprobe -r "$(basename "$holder")" 2>/dev/null || true
+  done
+  if ! output=$(modprobe -r brcmfmac 2>&1); then
+    logger -t teslacam-wifi "could not unload brcmfmac: $output"
+  fi
   sleep 3
   modprobe brcmfmac
 }
@@ -59,7 +64,7 @@ hotspot_stop() {
     waited=$((waited + 1))
   done
   nmcli device set "$iface" managed yes || true
-  sleep 3  # NetworkManager needs a moment before it can connect the device again
+  sleep 6  # the reloaded chip needs its firmware, and NetworkManager a moment to pick it up
 }
 
 case "${1:-}" in
