@@ -105,8 +105,7 @@ class Manager:
         except WifiError as e:
             log.info("scan before setup failed: %s", e)
         try:
-            self.wifi.start_hotspot(self.cfg.get("network.setup_ssid"), self.cfg.get("network.setup_password"),
-                                    self.cfg.get("network.setup_address"))
+            self.wifi.start_hotspot()
         except WifiError as e:
             log.error("could not start setup hotspot: %s", e)
             self.disconnected_since = self.now()  # retry after another fallback period
@@ -203,7 +202,9 @@ def run(cfg: Config) -> None:
     def recover(action: str) -> None:
         subprocess.run(["sudo", "-n", helper, action], check=True, capture_output=True, timeout=120)
 
-    mgr = Manager(cfg, Nmcli(cfg.get("network.interface")), conn, recover)
+    backend = Nmcli(cfg.get("network.interface"), helper=helper)
+    backend.stop_hotspot()  # a restart of this service ends the hotspot; hand wifi back to NetworkManager
+    mgr = Manager(cfg, backend, conn, recover)
     log.info("network daemon started on %s", cfg.get("network.interface"))
     interval = float(cfg.get("network.check_interval"))
     while True:

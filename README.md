@@ -212,7 +212,7 @@ install/        setup.sh, systemd units, config example
 
 ## Notes and limitations
 
-- The setup hotspot needs NetworkManager (the default on Bookworm) plus a polkit rule that lets the `teslacam` user control it, which `setup.sh` installs. Some brcmfmac firmware versions are picky about WPA2 access-point mode. If phones can't join `TeslaCam-Setup`, check `journalctl -u teslacam-netwatch`.
+- The setup hotspot runs on `hostapd` and `dnsmasq`, started through the root helper, because a NetworkManager access point failed the WPA2 handshake on the Pi Zero W. Wifi is handed back to NetworkManager when the hotspot stops. If phones can't join `TeslaCam-Setup`, check `journalctl -u teslacam-netwatch`.
 
 - **Partly tested on real hardware.** `setup.sh`, Tailscale, the NAS connection and the UI have run on a Pi Zero W. The car side (the USB gadget in a Tesla, reflink snapshots and car-drive cleanup) hasn't been tried in a car yet. The Python services, the uploader and the UI are also covered by tests.
 - **No hardware watchdog.** The Pi's watchdog chip allows at most 15 s, and on a Zero W a `systemctl daemon-reload` (run by installs and `apt`) blocks systemd for longer, so a systemd watchdog would reset the Pi, and pull the drive from the car. Earlier versions of `setup.sh` enabled one; re-running the installer removes it.

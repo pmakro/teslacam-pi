@@ -95,7 +95,7 @@ class FakeWifi:
     def scan(self):
         return [{"ssid": "Car", "signal": 70, "secure": True}]
 
-    def start_hotspot(self, ssid, password, address):
+    def start_hotspot(self):
         if self.fail_hotspot:
             raise WifiError("AP mode not supported")
         self.hotspot = True

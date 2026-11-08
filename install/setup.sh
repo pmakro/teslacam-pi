@@ -38,7 +38,7 @@ apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
   python3 python3-flask python3-waitress rsync openssh-client \
   exfatprogs xfsprogs util-linux avahi-daemon curl ca-certificates \
-  network-manager dnsmasq-base iw polkitd >/dev/null
+  network-manager dnsmasq-base hostapd iw polkitd >/dev/null
 python3 -c 'import sys; assert sys.version_info >= (3, 9)' || die "Python 3.9+ required"
 
 # ---------------------------------------------------------------------------------------------
@@ -135,7 +135,7 @@ visudo -cf /etc/sudoers.d/teslacam >/dev/null
 
 # ---------------------------------------------------------------------------------------------
 log "Wifi management"
-# Let the services manage NetworkManager (saved networks, setup hotspot) without sudo.
+# Let the services manage NetworkManager (saved networks) without sudo.
 mkdir -p /etc/polkit-1/rules.d
 cat > /etc/polkit-1/rules.d/50-teslacam-networkmanager.rules <<'EOF'
 polkit.addRule(function (action, subject) {
@@ -144,13 +144,10 @@ polkit.addRule(function (action, subject) {
   }
 });
 EOF
-# Captive portal: while the setup hotspot runs, answer every DNS name with the Pi's address so
-# phones pop up the Wifi page by themselves. Only applies to NetworkManager "shared" connections,
-# i.e. the setup hotspot.
-mkdir -p /etc/NetworkManager/dnsmasq-shared.d
-setup_addr=$(sed -n 's/^setup_address = "\(.*\)".*/\1/p' $ETC/config.toml)
-echo "address=/#/${setup_addr:-10.42.0.1}" > /etc/NetworkManager/dnsmasq-shared.d/teslacam-captive.conf
 systemctl enable --now NetworkManager >/dev/null 2>&1 || warn "NetworkManager is not running; wifi management needs it"
+# Older installs ran the setup hotspot through NetworkManager; it now uses hostapd (see priv.sh).
+rm -f /etc/NetworkManager/dnsmasq-shared.d/teslacam-captive.conf
+nmcli connection delete teslacam-setup >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------------------------
 log "SSH key for uploads"

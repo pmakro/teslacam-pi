@@ -1,7 +1,8 @@
 """NetworkManager (nmcli) wrapper: link health, saved networks, scanning and the setup hotspot.
 
 The `teslacam` user may control NetworkManager through a polkit rule installed by setup.sh,
-so neither the web UI nor the network daemon needs sudo for this.
+so neither the web UI nor the network daemon needs sudo for this. The setup hotspot is the
+exception: it runs hostapd through the root helper (see scripts/priv.sh).
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ import re
 import subprocess
 from typing import Dict, List, Optional, Tuple
 
-HOTSPOT_CON = "teslacam-setup"
 WIFI_TYPE = "802-11-wireless"
 
 
@@ -45,8 +45,9 @@ def split_terse(line: str) -> List[str]:
 
 
 class Nmcli:
-    def __init__(self, interface: str = "wlan0"):
+    def __init__(self, interface: str = "wlan0", helper: Optional[str] = None):
         self.iface = interface
+        self.helper = helper
 
     def _run(self, *args: str, timeout: int = 45, check: bool = True) -> str:
         try:
@@ -104,7 +105,7 @@ class Nmcli:
         nets = []
         for line in out.splitlines():
             parts = split_terse(line)
-            if len(parts) < 4 or parts[2] != WIFI_TYPE or parts[0] == HOTSPOT_CON:
+            if len(parts) < 4 or parts[2] != WIFI_TYPE:
                 continue
             ssid = self._run("-g", "802-11-wireless.ssid", "connection", "show", "uuid", parts[1], check=False).strip()
             nets.append({"name": parts[0], "uuid": parts[1], "ssid": ssid or parts[0], "priority": parts[3]})
@@ -147,26 +148,22 @@ class Nmcli:
 
     # --- setup hotspot ---------------------------------------------------------------------
 
-    def start_hotspot(self, ssid: str, password: str, address: str) -> None:
-        validate(ssid, password)
-        if not password:
-            raise WifiError("the setup hotspot needs a password")
-        settings = [
-            "ssid", ssid, "802-11-wireless.mode", "ap", "802-11-wireless.band", "bg",
-            "ipv4.method", "shared", "ipv4.addresses", f"{address}/24", "ipv6.method", "disabled",
-            "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password, "wifi-sec.proto", "rsn",
-            "wifi-sec.pairwise", "ccmp", "wifi-sec.group", "ccmp", "wifi-sec.pmf", "disable",
-            "connection.autoconnect", "no",
-        ]
-        exists = self._run("-t", "-f", "NAME", "connection", "show", check=False).splitlines()
-        if HOTSPOT_CON in exists:
-            self._run("connection", "modify", HOTSPOT_CON, *settings)
-        else:
-            self._run("connection", "add", "type", "wifi", "ifname", self.iface, "con-name", HOTSPOT_CON, *settings)
-        self._run("connection", "up", HOTSPOT_CON, timeout=60)
+    def _priv(self, action: str, check: bool = True) -> None:
+        if not self.helper:
+            raise WifiError("the setup hotspot needs the root helper")
+        try:
+            res = subprocess.run(["sudo", "-n", self.helper, action], capture_output=True, text=True, timeout=90)
+        except subprocess.TimeoutExpired as e:
+            raise WifiError(f"{action} timed out") from e
+        if check and res.returncode != 0:
+            raise WifiError(res.stderr.strip() or res.stdout.strip() or f"{action} exited {res.returncode}")
+
+    def start_hotspot(self) -> None:
+        """Start hostapd and DHCP/DNS as root. The helper reads the settings from the config file."""
+        self._priv("hotspot-start")
 
     def stop_hotspot(self) -> None:
-        self._run("connection", "down", HOTSPOT_CON, check=False)
+        self._priv("hotspot-stop", check=False)
 
     def stations(self) -> int:
         """Devices currently joined to the setup hotspot."""
