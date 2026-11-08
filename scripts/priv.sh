@@ -29,6 +29,15 @@ fsck_image() {
   fsck.exfat -y "$dev" >/dev/null 2>&1 || true
 }
 
+# The usual cure for a wedged brcmfmac chip on the Pi Zero W. brcmfmac_wcc only exists on newer
+# kernels, and has to go first because it holds brcmfmac.
+reload_wifi_driver() {
+  modprobe -r brcmfmac_wcc 2>/dev/null || true
+  modprobe -r brcmfmac 2>/dev/null || true
+  sleep 3
+  modprobe brcmfmac
+}
+
 # Safe to call when no hotspot is running: without the state directory it changes nothing, so
 # it can't take down a working wifi connection.
 hotspot_stop() {
@@ -41,6 +50,14 @@ hotspot_stop() {
   sleep 1
   ip addr flush dev "$iface" 2>/dev/null || true
   rm -rf "$HOTSPOT_STATE" "$DHCP_LEASES"
+  # After hostapd the Pi Zero W rejoined home wifi fine, then a few minutes later its transmit
+  # rate collapsed and packets were lost. Start the client connection with fresh firmware.
+  reload_wifi_driver || true
+  local waited=0
+  while [ ! -e "/sys/class/net/$iface" ] && [ "$waited" -lt 15 ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
   nmcli device set "$iface" managed yes || true
   sleep 3  # NetworkManager needs a moment before it can connect the device again
 }
@@ -102,10 +119,7 @@ case "${1:-}" in
     nmcli radio wifi on
     ;;
   wifi-reset-driver)
-    # The usual cure for a wedged brcmfmac chip on the Pi Zero W.
-    modprobe -r brcmfmac || true
-    sleep 3
-    modprobe brcmfmac
+    reload_wifi_driver
     ;;
   hotspot-start)
     hotspot_stop
