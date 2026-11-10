@@ -43,7 +43,11 @@ python3 -c 'import sys; assert sys.version_info >= (3, 9)' || die "Python 3.9+ r
 
 # ---------------------------------------------------------------------------------------------
 log "Enabling USB gadget mode (dwc2)"
-if ! grep -q '^dtoverlay=dwc2' $BOOT/config.txt; then
+# Only an overlay that applies to every board counts. Stock Raspberry Pi OS already has
+# `dtoverlay=dwc2,dr_mode=host` under [cm5], which does nothing on a Zero and must not count.
+if ! awk '/^\[/ { section = $0 }
+          /^dtoverlay=dwc2([,:]|$)/ && (section == "" || section == "[all]") && !/dr_mode=host/ { found = 1 }
+          END { exit !found }' $BOOT/config.txt; then
   printf '\n[all]\ndtoverlay=dwc2\n' >> $BOOT/config.txt
   REBOOT_NEEDED=1
 fi
